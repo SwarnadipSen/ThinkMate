@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+env/
+venv/
+ENV/
+chroma_db/
+uploads/
+
+# Secrets & Config
+.env
+
+
+# Databases
+*.db
+*.sqlite3
+
+# IDEs
+.vscode/
+.idea/
+
+# Distribution
+dist/
+build/
+*.egg-info/
+
+
