@@ -159,3 +159,76 @@ class MCQEvaluationWithPlanResponse(BaseModel):
 class ExamExportRequest(BaseModel):
     title: str = "Exam Paper"
     questions: List[DescriptiveQuestion]
+
+
+# ============= Analytics Models =============
+class AnalyticsSummary(BaseModel):
+    total_courses: int
+    active_courses: int
+    total_documents: int
+    active_students: int
+    total_conversations: int
+    total_messages: int
+    avg_messages_per_conversation: float
+    engagement_rate: float
+
+
+class SourceCoverage(BaseModel):
+    assistant_messages_with_sources: int
+    total_assistant_messages: int
+    coverage_rate: float
+
+
+class CourseAnalytics(BaseModel):
+    course_id: str
+    course_name: str
+    document_count: int
+    student_count: int
+    conversation_count: int
+    message_count: int
+    avg_messages_per_conversation: float
+    last_activity: Optional[datetime] = None
+
+
+class DailyActivity(BaseModel):
+    date: str
+    message_count: int
+    conversation_count: int
+    active_students: int
+
+
+class IssueSignal(BaseModel):
+    issue: str
+    count: int
+    percentage: float
+    example_prompts: List[str] = Field(default_factory=list)
+
+
+class AtRiskCourse(BaseModel):
+    course_id: str
+    course_name: str
+    risk_score: float
+    risk_level: str
+    issue_rate: float
+    source_coverage_rate: float
+    days_since_last_activity: Optional[int] = None
+    reasons: List[str] = Field(default_factory=list)
+
+
+class ActionRecommendation(BaseModel):
+    priority: str
+    title: str
+    rationale: str
+    suggested_actions: List[str] = Field(default_factory=list)
+
+
+class TeacherAnalyticsOverview(BaseModel):
+    time_range: str
+    generated_at: datetime
+    summary: AnalyticsSummary
+    source_coverage: SourceCoverage
+    top_courses: List[CourseAnalytics] = Field(default_factory=list)
+    activity_by_day: List[DailyActivity] = Field(default_factory=list)
+    issue_signals: List[IssueSignal] = Field(default_factory=list)
+    at_risk_courses: List[AtRiskCourse] = Field(default_factory=list)
+    recommendations: List[ActionRecommendation] = Field(default_factory=list)
