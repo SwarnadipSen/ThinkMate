@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import connect_to_mongo, close_mongo_connection
 from app.vector_store import vector_store
-from app.routers import auth, courses, documents, chat, exam
+from app.routers import auth, courses, documents, chat, exam, analytics
 
 
 @asynccontextmanager
@@ -41,6 +41,7 @@ app.include_router(courses.router)
 app.include_router(documents.router)
 app.include_router(chat.router)
 app.include_router(exam.router)
+app.include_router(analytics.router)
 
 
 @app.get("/")

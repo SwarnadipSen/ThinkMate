@@ -140,3 +140,75 @@ export interface ExamExportRequest {
   title: string;
   questions: DescriptiveQuestion[];
 }
+
+export interface AnalyticsSummary {
+  total_courses: number;
+  active_courses: number;
+  total_documents: number;
+  active_students: number;
+  total_conversations: number;
+  total_messages: number;
+  avg_messages_per_conversation: number;
+  engagement_rate: number;
+}
+
+export interface SourceCoverage {
+  assistant_messages_with_sources: number;
+  total_assistant_messages: number;
+  coverage_rate: number;
+}
+
+export interface CourseAnalytics {
+  course_id: string;
+  course_name: string;
+  document_count: number;
+  student_count: number;
+  conversation_count: number;
+  message_count: number;
+  avg_messages_per_conversation: number;
+  last_activity?: string | null;
+}
+
+export interface DailyActivity {
+  date: string;
+  message_count: number;
+  conversation_count: number;
+  active_students: number;
+}
+
+export interface IssueSignal {
+  issue: string;
+  count: number;
+  percentage: number;
+  example_prompts: string[];
+}
+
+export interface AtRiskCourse {
+  course_id: string;
+  course_name: string;
+  risk_score: number;
+  risk_level: "high" | "medium" | "low";
+  issue_rate: number;
+  source_coverage_rate: number;
+  days_since_last_activity?: number | null;
+  reasons: string[];
+}
+
+export interface ActionRecommendation {
+  priority: "high" | "medium" | "low";
+  title: string;
+  rationale: string;
+  suggested_actions: string[];
+}
+
+export interface TeacherAnalyticsOverview {
+  time_range: "7d" | "30d" | "90d" | "all";
+  generated_at: string;
+  summary: AnalyticsSummary;
+  source_coverage: SourceCoverage;
+  top_courses: CourseAnalytics[];
+  activity_by_day: DailyActivity[];
+  issue_signals: IssueSignal[];
+  at_risk_courses: AtRiskCourse[];
+  recommendations: ActionRecommendation[];
+}

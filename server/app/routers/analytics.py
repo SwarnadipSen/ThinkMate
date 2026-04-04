@@ -7,7 +7,9 @@ from fastapi import APIRouter, Depends, Query
 from app.auth import get_current_teacher
 from app.database import get_database
 from app.models import (
+    ActionRecommendation,
     AnalyticsSummary,
+    AtRiskCourse,
     CourseAnalytics,
     DailyActivity,
     IssueSignal,
@@ -74,6 +76,14 @@ def _get_start_date(time_range: str) -> Optional[datetime]:
     return None
 
 
+def _risk_level(score: float) -> str:
+    if score >= 70:
+        return "high"
+    if score >= 40:
+        return "medium"
+    return "low"
+
+
 @router.get("/overview", response_model=TeacherAnalyticsOverview)
 async def get_teacher_analytics_overview(
     time_range: str = Query("30d", pattern="^(7d|30d|90d|all)$"),
@@ -111,6 +121,8 @@ async def get_teacher_analytics_overview(
             top_courses=[],
             activity_by_day=[],
             issue_signals=[],
+            at_risk_courses=[],
+            recommendations=[],
         )
 
     course_ids = [course["course_id"] for course in course_docs]
@@ -138,6 +150,10 @@ async def get_teacher_analytics_overview(
             "student_ids": set(),
             "conversation_count": 0,
             "message_count": 0,
+            "user_message_count": 0,
+            "assistant_message_count": 0,
+            "assistant_with_sources": 0,
+            "issue_count": 0,
             "last_activity": None,
         }
         for course_id in course_ids
@@ -149,6 +165,9 @@ async def get_teacher_analytics_overview(
 
     async for conversation in db.chat_history.find(conversation_query):
         course_id = conversation["course_id"]
+        if course_id not in course_stats:
+            continue
+
         student_id = conversation.get("student_id")
         messages = conversation.get("messages", [])
         updated_at = conversation.get("updated_at")
@@ -193,18 +212,27 @@ async def get_teacher_analytics_overview(
             role = message.get("role")
             if role == "assistant":
                 assistant_messages += 1
+                course_stats[course_id]["assistant_message_count"] += 1
                 if message.get("sources"):
                     assistant_with_sources += 1
+                    course_stats[course_id]["assistant_with_sources"] += 1
             elif role == "user":
                 total_user_messages += 1
+                course_stats[course_id]["user_message_count"] += 1
                 content = (message.get("content") or "").strip()
                 lowered = content.lower()
 
+                matched_issue = False
+
                 for issue, patterns in ISSUE_PATTERNS.items():
                     if any(pattern in lowered for pattern in patterns):
+                        matched_issue = True
                         issue_counts[issue] += 1
                         if content and len(issue_examples[issue]) < 3:
                             issue_examples[issue].append(content[:140])
+
+                if matched_issue:
+                    course_stats[course_id]["issue_count"] += 1
 
     avg_messages = round(total_messages / total_conversations, 2) if total_conversations > 0 else 0.0
     engagement_rate = (
@@ -266,6 +294,130 @@ async def get_teacher_analytics_overview(
             )
         )
 
+    at_risk_courses: List[AtRiskCourse] = []
+    now = datetime.utcnow()
+    for course in top_courses:
+        stats = course_stats[course.course_id]
+        user_message_count = stats["user_message_count"]
+        assistant_message_count = stats["assistant_message_count"]
+        issue_count = stats["issue_count"]
+        assistant_with_sources_count = stats["assistant_with_sources"]
+
+        issue_rate = round((issue_count / user_message_count) * 100, 2) if user_message_count > 0 else 0.0
+        source_coverage_rate = (
+            round((assistant_with_sources_count / assistant_message_count) * 100, 2)
+            if assistant_message_count > 0
+            else 0.0
+        )
+
+        days_since_last_activity = None
+        if course.last_activity:
+            days_since_last_activity = max((now - course.last_activity).days, 0)
+
+        risk_score = 0.0
+        reasons: List[str] = []
+
+        if issue_rate >= 35:
+            risk_score += 40
+            reasons.append(f"High issue request rate ({issue_rate}%)")
+        elif issue_rate >= 20:
+            risk_score += 25
+            reasons.append(f"Moderate issue request rate ({issue_rate}%)")
+        elif issue_rate >= 10:
+            risk_score += 12
+
+        if source_coverage_rate < 50 and assistant_message_count > 0:
+            risk_score += 30
+            reasons.append(f"Low citation coverage ({source_coverage_rate}%)")
+        elif source_coverage_rate < 70 and assistant_message_count > 0:
+            risk_score += 18
+
+        if days_since_last_activity is not None and days_since_last_activity > 14:
+            risk_score += 20
+            reasons.append(f"No activity for {days_since_last_activity} days")
+        elif days_since_last_activity is not None and days_since_last_activity > 7:
+            risk_score += 10
+
+        if course.conversation_count == 0:
+            risk_score += 15
+            reasons.append("No student conversations yet")
+
+        risk_score = round(min(risk_score, 100.0), 2)
+        level = _risk_level(risk_score)
+
+        if level in ["high", "medium"]:
+            at_risk_courses.append(
+                AtRiskCourse(
+                    course_id=course.course_id,
+                    course_name=course.course_name,
+                    risk_score=risk_score,
+                    risk_level=level,
+                    issue_rate=issue_rate,
+                    source_coverage_rate=source_coverage_rate,
+                    days_since_last_activity=days_since_last_activity,
+                    reasons=reasons,
+                )
+            )
+
+    at_risk_courses.sort(key=lambda item: item.risk_score, reverse=True)
+
+    recommendations: List[ActionRecommendation] = []
+    if issue_signals:
+        top_issue = issue_signals[0]
+        recommendations.append(
+            ActionRecommendation(
+                priority="high",
+                title=f"Address frequent learner issue: {top_issue.issue}",
+                rationale=(
+                    f"{top_issue.count} prompts ({top_issue.percentage}% of student prompts) indicate repeated friction."
+                ),
+                suggested_actions=[
+                    "Create a focused revision handout for this topic.",
+                    "Add one worked example in the course documents.",
+                    "Start next class with a 10-minute misconception check.",
+                ],
+            )
+        )
+
+    low_coverage_courses = [
+        course for course in at_risk_courses if course.source_coverage_rate < 60
+    ]
+    if low_coverage_courses:
+        recommendations.append(
+            ActionRecommendation(
+                priority="medium",
+                title="Improve source grounding for AI responses",
+                rationale=(
+                    f"{len(low_coverage_courses)} course(s) have low source citation coverage, reducing answer reliability."
+                ),
+                suggested_actions=[
+                    "Upload clearer, topic-specific reference documents.",
+                    "Split oversized PDFs into smaller topic modules.",
+                    "Review extraction quality for scanned/low-quality files.",
+                ],
+            )
+        )
+
+    stale_courses = [
+        course for course in at_risk_courses
+        if course.days_since_last_activity is not None and course.days_since_last_activity > 14
+    ]
+    if stale_courses:
+        recommendations.append(
+            ActionRecommendation(
+                priority="low",
+                title="Re-engage inactive courses",
+                rationale=(
+                    f"{len(stale_courses)} course(s) show low recent activity and may need intervention."
+                ),
+                suggested_actions=[
+                    "Post a weekly challenge question in class.",
+                    "Assign a short guided chat practice task.",
+                    "Open office-hour sessions for difficult topics.",
+                ],
+            )
+        )
+
     total_documents = sum(course_document_map.values())
 
     return TeacherAnalyticsOverview(
@@ -289,4 +441,6 @@ async def get_teacher_analytics_overview(
         top_courses=top_courses,
         activity_by_day=activity_by_day,
         issue_signals=issue_signals[:5],
+        at_risk_courses=at_risk_courses[:5],
+        recommendations=recommendations,
     )

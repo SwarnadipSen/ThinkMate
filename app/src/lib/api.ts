@@ -19,6 +19,7 @@ import {
   MCQEvaluationResponse,
   DescriptiveGenerationResponse,
   ExamExportRequest,
+  TeacherAnalyticsOverview,
 } from "@/types";
 
 // Auth APIs
@@ -178,5 +179,13 @@ export const examApi = {
       headers: {
         "Content-Type": "application/json",
       },
+    }),
+};
+
+// Analytics APIs
+export const analyticsApi = {
+  getOverview: (timeRange: "7d" | "30d" | "90d" | "all" = "30d") =>
+    apiClient.get<TeacherAnalyticsOverview>("/analytics/overview", {
+      params: { time_range: timeRange },
     }),
 };

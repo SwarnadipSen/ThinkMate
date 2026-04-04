@@ -523,7 +523,11 @@ export function ExamMode() {
                             key={opt}
                             className={`rounded-md border p-2 text-left text-sm transition-colors ${
                               mcqAnswers[index] === opt
-                                ? "border-foreground bg-foreground text-background"
+                                ? mcqResult
+                                  ? opt === q.correct_answer
+                                    ? "border-emerald-600 bg-emerald-600 text-white"
+                                    : "border-red-600 bg-red-600 text-white"
+                                  : "border-foreground bg-foreground text-background"
                                 : "hover:bg-muted"
                             }`}
                             onClick={() => {
