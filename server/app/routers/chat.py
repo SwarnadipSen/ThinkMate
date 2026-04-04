@@ -4,7 +4,7 @@ from app.models import ChatRequest, ChatResponse, ConversationSummary, Conversat
 from app.auth import get_current_student
 from app.database import get_database
 from app.vector_store import vector_store
-from app.llm import generate_socratic_response, generate_socratic_response_stream
+from app.llm import generate_thinkmate_response, generate_thinkmate_response_stream
 from datetime import datetime
 from typing import List
 from bson import ObjectId
@@ -18,7 +18,7 @@ async def chat(
     chat_request: ChatRequest,
     current_user: dict = Depends(get_current_student)
 ):
-    """Send a message and get Socratic response (students only)"""
+    """Send a message and get ThinkMate response (students only)"""
     db = await get_database()
     
     # Verify course exists
@@ -86,9 +86,9 @@ async def chat(
         print(f"Error searching vector store: {e}")
         sources = []
     
-    # Generate Socratic response
+    # Generate ThinkMate response
     try:
-        response_text = generate_socratic_response(
+        response_text = generate_thinkmate_response(
             user_message=chat_request.message,
             conversation_history=conversation.get("messages", []),
             sources=sources,
@@ -147,7 +147,7 @@ async def chat_stream(
     chat_request: ChatRequest,
     current_user: dict = Depends(get_current_student)
 ):
-    """Send a message and stream Socratic response chunks (students only)."""
+    """Send a message and stream ThinkMate response chunks (students only)."""
     db = await get_database()
 
     course = await db.courses.find_one({"course_id": chat_request.course_id})
@@ -221,7 +221,7 @@ async def chat_stream(
         response_parts: List[str] = []
 
         try:
-            for token in generate_socratic_response_stream(
+            for token in generate_thinkmate_response_stream(
                 user_message=chat_request.message,
                 conversation_history=conversation.get("messages", []),
                 sources=sources,

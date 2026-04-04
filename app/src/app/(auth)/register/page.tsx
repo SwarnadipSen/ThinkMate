@@ -17,7 +17,7 @@ export default function RegisterPage() {
               Start Your Learning Journey
             </h2>
             <p className="text-lg text-purple-200">
-              Experience personalized Socratic learning with AI
+              Experience personalized learning with ThinkMate AI
             </p>
           </div>
         </div>

@@ -10,7 +10,7 @@ ENV_FILE = BASE_DIR / ".env"
 class Settings(BaseSettings):
     # MongoDB
     MONGODB_URL: str
-    DATABASE_NAME: str = "socratic_tutor"
+    DATABASE_NAME: str = "thinkmate"
     
     # JWT
     JWT_SECRET_KEY: str
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-1.5-pro"
     
     # MongoDB Vector Store (Atlas Vector Search)
-    VECTOR_DATABASE_NAME: str = "socratic_tutor_vectors"
+    VECTOR_DATABASE_NAME: str = "thinkmate_vectors"
     VECTOR_COLLECTION_NAME: str = "document_chunks"
     VECTOR_SEARCH_INDEX_NAME: str = "vector_index"
     VECTOR_DIMENSIONS: int = 384

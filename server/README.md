@@ -1,6 +1,6 @@
-# Socratic AI Tutor - Backend
+# ThinkMate - Backend
 
-A FastAPI-based backend for a RAG (Retrieval-Augmented Generation) powered Socratic AI tutoring system.
+A FastAPI-based backend for a RAG (Retrieval-Augmented Generation) powered ThinkMate AI tutoring system.
 
 ## Features
 
@@ -12,7 +12,7 @@ A FastAPI-based backend for a RAG (Retrieval-Augmented Generation) powered Socra
   - Embeddings using HuggingFace all-MiniLM-L6-v2 (384-dim)
   - Vector storage in MongoDB Atlas Vector Search
   - Metadata storage in MongoDB Atlas
-- **Socratic Chat**: AI-powered tutoring using Groq's llama-3.3-70b-versatile
+- **ThinkMate Chat**: AI-powered tutoring using Groq's llama-3.3-70b-versatile
 - **Streaming Chat**: Progressive token-by-token assistant responses via NDJSON stream
 - **Chat History**: Persistent conversation tracking
 
@@ -31,7 +31,7 @@ Copy `.env.example` to `.env` and configure:
 ```bash
 # MongoDB Atlas
 MONGODB_URL=mongodb+srv://username:password@cluster.mongodb.net/
-DATABASE_NAME=socratic_tutor
+DATABASE_NAME=thinkmate
 
 # JWT Secret (generate with: openssl rand -hex 32)
 JWT_SECRET_KEY=your-secret-key-here
@@ -40,7 +40,7 @@ JWT_SECRET_KEY=your-secret-key-here
 GROQ_API_KEY=your-groq-api-key-here
 
 # MongoDB Vector Store
-VECTOR_DATABASE_NAME=socratic_tutor_vectors
+VECTOR_DATABASE_NAME=thinkmate_vectors
 VECTOR_COLLECTION_NAME=document_chunks
 VECTOR_SEARCH_INDEX_NAME=vector_index
 VECTOR_DIMENSIONS=384
@@ -86,8 +86,8 @@ API Documentation: `http://localhost:8000/docs`
 
 ### Chat (Students)
 
-- `POST /chat` - Send message and get Socratic response
-- `POST /chat/stream` - Send message and stream Socratic response chunks
+- `POST /chat` - Send message and get ThinkMate response
+- `POST /chat/stream` - Send message and stream ThinkMate response chunks
 - `GET /chat/history` - Get all conversations
 - `GET /chat/history/{conversation_id}` - Get specific conversation
 - `DELETE /chat/history/{conversation_id}` - Delete conversation
@@ -99,7 +99,7 @@ File Upload → Extract Text → Chunk → Embed → Store
                                               ↓
                                       MongoDB Atlas
 
-Student Query → Embed → Atlas Vector Search → Top 3 Chunks → Groq LLM → Socratic Response
+Student Query → Embed → Atlas Vector Search → Top 3 Chunks → Groq LLM → ThinkMate Response
 
 Student Query (Stream) → Embed → Atlas Vector Search → Groq LLM (stream=True) → NDJSON chunks → Final save to history
 ```

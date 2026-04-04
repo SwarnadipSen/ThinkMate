@@ -15,8 +15,8 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Socratic AI Tutor",
-  description: "RAG-based Socratic tutoring system",
+  title: "ThinkMate",
+  description: "RAG-based AI tutoring system",
 };
 
 export default function RootLayout({

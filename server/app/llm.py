@@ -8,7 +8,7 @@ import urllib.request
 
 client = Groq(api_key=settings.GROQ_API_KEY)
 
-SOCRATIC_SYSTEM_PROMPT = """You are a Socratic AI tutor. Your role is to guide students to discover answers themselves through thoughtful questioning and dialogue, rather than providing direct answers.
+THINKMATE_SYSTEM_PROMPT = """You are ThinkMate, an AI tutor using the Socratic method. Your role is to guide students to discover answers themselves through thoughtful questioning and dialogue, rather than providing direct answers.
 
 Guidelines:
 1. Ask probing questions that help students think critically
@@ -52,7 +52,7 @@ def build_chat_messages(
     context = build_context_from_sources(sources)
 
     messages = [
-        {"role": "system", "content": SOCRATIC_SYSTEM_PROMPT}
+        {"role": "system", "content": THINKMATE_SYSTEM_PROMPT}
     ]
 
     if course_name or context:
@@ -70,13 +70,13 @@ def build_chat_messages(
     return messages
 
 
-def generate_socratic_response(
+def generate_thinkmate_response(
     user_message: str,
     conversation_history: List[Dict[str, str]],
     sources: List[Dict],
     course_name: str = ""
 ) -> str:
-    """Generate Socratic response using Groq LLM"""
+    """Generate ThinkMate response using Groq LLM"""
     messages = build_chat_messages(user_message, conversation_history, sources, course_name)
     
     # Call Groq API
@@ -96,13 +96,13 @@ def generate_socratic_response(
         raise Exception(f"Error generating response from Groq: {str(e)}")
 
 
-def generate_socratic_response_stream(
+def generate_thinkmate_response_stream(
     user_message: str,
     conversation_history: List[Dict[str, str]],
     sources: List[Dict],
     course_name: str = ""
 ) -> Iterator[str]:
-    """Stream Socratic response token chunks from Groq."""
+    """Stream ThinkMate response token chunks from Groq."""
     messages = build_chat_messages(user_message, conversation_history, sources, course_name)
 
     try:

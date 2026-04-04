@@ -4,7 +4,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     SOCRATIC AI TUTOR SYSTEM                     │
+│                        THINKMATE SYSTEM                          │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────┐         ┌─────────────────────────────────────────┐
@@ -16,7 +16,7 @@
                         │  │  - /auth/* (JWT Auth)              │  │
                         │  │  - /courses/* (Course CRUD)        │  │
                         │  │  - /documents/* (Upload/Process)   │  │
-                        │  │  - /chat/* (RAG + Socratic Chat)   │  │
+                        │  │  - /chat/* (RAG + ThinkMate Chat)  │  │
                         │  └────────────────────────────────────┘  │
                         │                                          │
                         │  ┌────────────────────────────────────┐  │
@@ -49,7 +49,7 @@
          ┌─────────────────────────────────────────────────────────┐
          │                    Groq API                             │
          │            llama-3.3-70b-versatile                      │
-         │         (Socratic Response Generation)                  │
+         │         (ThinkMate Response Generation)                 │
          └─────────────────────────────────────────────────────────┘
 ```
 
@@ -106,7 +106,7 @@
              │
              ├─► Send to Groq LLM
              │       │
-             │       └─► Socratic Prompt + Context
+             │       └─► ThinkMate Prompt + Context
              │
             ├─► Stream tokens (NDJSON chunks)
             │       │
@@ -168,7 +168,7 @@ Student Question
     │   ├─► Model: llama-3.3-70b-versatile
     │   ├─► Temperature: 0.7
     │   ├─► Max tokens: 500
-    │   ├─► System: Socratic prompt
+    │   ├─► System: ThinkMate prompt
     │   ├─► Context: Retrieved chunks + history
     │   └─► Streaming mode: stream=True (/chat/stream)
     │

@@ -24,7 +24,7 @@ export function Navbar({ items }: NavbarProps) {
       <div className="flex h-14 w-full items-center px-4 md:px-6">
         <div className="mr-8 flex items-center space-x-2">
           <GraduationCap className="h-6 w-6" />
-          <span className="text-xl font-bold">Socratic AI Tutor</span>
+          <span className="text-xl font-bold">ThinkMate</span>
         </div>
         <nav className="flex flex-1 items-center space-x-6 text-sm font-medium">
           {items.map((item) => (

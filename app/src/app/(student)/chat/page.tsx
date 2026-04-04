@@ -268,7 +268,7 @@ export default function StudentChatPage() {
                 <div className="rounded-md bg-foreground p-1.5 text-background">
                   <Sparkles className="h-3.5 w-3.5" />
                 </div>
-                <p className="text-sm font-semibold">Socratic Tutor</p>
+                <p className="text-sm font-semibold">ThinkMate Tutor</p>
               </div>
 
               <Button

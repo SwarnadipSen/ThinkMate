@@ -20,8 +20,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Socratic AI Tutor API",
-    description="RAG-based Socratic tutoring system with course management",
+    title="ThinkMate API",
+    description="RAG-based AI tutoring system with course management",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -46,7 +46,7 @@ app.include_router(exam.router)
 @app.get("/")
 async def root():
     return {
-        "message": "Welcome to Socratic AI Tutor API",
+        "message": "Welcome to ThinkMate API",
         "version": "1.0.0",
         "docs": "/docs"
     }
