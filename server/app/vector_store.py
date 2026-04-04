@@ -104,7 +104,14 @@ class VectorStore:
         if self.collection is None:
             raise RuntimeError("Vector store is not initialized")
 
-        embeddings = [self.embed_text(doc) for doc in documents]
+        if self.embedding_model is None:
+            raise RuntimeError("Embedding model is not initialized")
+
+        embeddings = self.embedding_model.encode(
+            documents,
+            batch_size=settings.EMBEDDING_BATCH_SIZE,
+            show_progress_bar=False,
+        )
         records = []
         for idx, doc in enumerate(documents):
             metadata = metadatas[idx] if idx < len(metadatas) else {}
@@ -114,7 +121,7 @@ class VectorStore:
                     "course_id": course_id,
                     "content": doc,
                     "metadata": metadata,
-                    "embedding": embeddings[idx],
+                    "embedding": embeddings[idx].tolist(),
                 }
             )
 

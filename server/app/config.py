@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     
     # Embedding
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDING_BATCH_SIZE: int = 32
     
     # Chunking
     CHUNK_SIZE: int = 500

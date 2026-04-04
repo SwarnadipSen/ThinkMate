@@ -8,6 +8,7 @@ from app.config import settings
 from datetime import datetime
 from typing import List
 import uuid
+import asyncio
 from bson import ObjectId
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -64,7 +65,9 @@ async def upload_document(
     
     # Process document
     try:
-        chunks, file_type, page_numbers = process_document(file_content, file.filename)
+        chunks, file_type, page_numbers = await asyncio.to_thread(
+            process_document, file_content, file.filename
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -89,11 +92,12 @@ async def upload_document(
     
     # Store chunk embeddings in MongoDB vector collection
     try:
-        vector_store.add_documents(
+        await asyncio.to_thread(
+            vector_store.add_documents,
             course_id=course_id,
             documents=chunks,
             metadatas=metadatas,
-            ids=chunk_ids
+            ids=chunk_ids,
         )
     except Exception as e:
         raise HTTPException(
