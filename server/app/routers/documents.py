@@ -8,6 +8,7 @@ from app.config import settings
 from datetime import datetime
 from typing import List
 import uuid
+from bson import ObjectId
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -174,8 +175,15 @@ async def delete_document(
     """Delete a document (teachers only)"""
     db = await get_database()
     
-    # Find document
+    # Find document by either internal document_id (UUID) or Mongo _id used by frontend.
     document = await db.documents.find_one({"document_id": document_id})
+    if not document:
+        try:
+            object_id = ObjectId(document_id)
+            document = await db.documents.find_one({"_id": object_id})
+        except Exception:
+            document = None
+
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -191,10 +199,10 @@ async def delete_document(
         )
     
     # Delete from MongoDB
-    await db.documents.delete_one({"document_id": document_id})
+    await db.documents.delete_one({"_id": document["_id"]})
 
     # Delete associated vectors from MongoDB vector collection.
-    vector_store.delete_document(document_id)
+    vector_store.delete_document(document["document_id"])
     
     # Update course document count
     await db.courses.update_one(
