@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import connect_to_mongo, close_mongo_connection
 from app.vector_store import vector_store
-from app.routers import auth, courses, documents, chat, analytics
+from app.routers import auth, courses, documents, chat, exam
 
 
 @asynccontextmanager
@@ -14,6 +14,7 @@ async def lifespan(app: FastAPI):
     print("🚀 Application started successfully!")
     yield
     # Shutdown
+    vector_store.close()
     await close_mongo_connection()
     print("👋 Application shutdown complete")
 
@@ -39,7 +40,7 @@ app.include_router(auth.router)
 app.include_router(courses.router)
 app.include_router(documents.router)
 app.include_router(chat.router)
-app.include_router(analytics.router)
+app.include_router(exam.router)
 
 
 @app.get("/")

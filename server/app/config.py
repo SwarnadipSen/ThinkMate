@@ -1,5 +1,10 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
+from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+ENV_FILE = BASE_DIR / ".env"
 
 
 class Settings(BaseSettings):
@@ -14,9 +19,16 @@ class Settings(BaseSettings):
     
     # Groq
     GROQ_API_KEY: str
+
+    # Gemini (controlled generation layer)
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-1.5-pro"
     
-    # ChromaDB
-    CHROMA_PERSIST_DIRECTORY: str = "./chroma_db"
+    # MongoDB Vector Store (Atlas Vector Search)
+    VECTOR_DATABASE_NAME: str = "socratic_tutor_vectors"
+    VECTOR_COLLECTION_NAME: str = "document_chunks"
+    VECTOR_SEARCH_INDEX_NAME: str = "vector_index"
+    VECTOR_DIMENSIONS: int = 384
     
     # File Upload
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB
@@ -30,7 +42,7 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 50
     
     class Config:
-        env_file = ".env"
+        env_file = str(ENV_FILE)
         case_sensitive = True
 
 

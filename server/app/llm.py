@@ -1,27 +1,19 @@
 from groq import Groq
 from app.config import settings
 from typing import Dict, Iterator, List
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
 
 client = Groq(api_key=settings.GROQ_API_KEY)
 
-SOCRATIC_SYSTEM_PROMPT = """You are a Socratic AI tutor. Your role is to guide students to discover answers themselves through thoughtful questioning and dialogue, rather than providing direct answers.
+SOCRATIC_SYSTEM_PROMPT = """You are a helpful AI tutor.
 
-Guidelines:
-1. Ask probing questions that help students think critically
-2. Build on their responses to deepen understanding
-3. Reference the provided course materials when relevant
-4. Encourage students to explain their reasoning
-5. When students are stuck, provide gentle hints through questions
-6. Acknowledge correct insights and guide them to explore further
-7. Keep responses concise and focused (around 100-150 words)
-8. Be encouraging and supportive
-
-When using context from course materials:
-- Reference specific concepts from the materials
-- Ask students to connect ideas from the readings
-- Help them discover relationships between concepts
-
-Remember: Your goal is to facilitate learning, not to lecture. Guide through questions."""
+Answer student questions clearly and simply.
+Use the provided course materials when relevant.
+Be concise, supportive, and easy to understand.
+If you are unsure, say so honestly."""
 
 
 def build_context_from_sources(sources: List[Dict]) -> str:
@@ -118,3 +110,86 @@ def generate_socratic_response_stream(
 
     except Exception as e:
         raise Exception(f"Error streaming response from Groq: {str(e)}")
+
+
+def _extract_json_object(text: str) -> Dict:
+    """Extract a JSON object from model output, including fenced responses."""
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.replace("```json", "").replace("```", "").strip()
+
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        pass
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError("Model did not return a valid JSON object")
+
+    extracted = cleaned[start : end + 1]
+    parsed = json.loads(extracted)
+    if not isinstance(parsed, dict):
+        raise ValueError("Model JSON output is not an object")
+    return parsed
+
+
+def generate_gemini_json(prompt: str, temperature: float = 0.3) -> Dict:
+    """Generate structured JSON output from Gemini using strict JSON response mode."""
+    if not settings.GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY is not configured")
+
+    # Accept both "gemini-..." and "models/gemini-..." formats from env.
+    model = settings.GEMINI_MODEL.replace("models/", "", 1)
+    endpoint = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{urllib.parse.quote(model)}:generateContent?key={urllib.parse.quote(settings.GEMINI_API_KEY)}"
+    )
+
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}],
+            }
+        ],
+        "generationConfig": {
+            "temperature": temperature,
+            "responseMimeType": "application/json",
+        },
+    }
+
+    data = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        endpoint,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:
+            raw = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="ignore") if exc.fp else str(exc)
+        raise RuntimeError(f"Gemini API HTTP error: {exc.code} {error_body}")
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Gemini API connection error: {exc}")
+
+    parsed = json.loads(raw)
+    candidates = parsed.get("candidates", [])
+    if not candidates:
+        raise RuntimeError("Gemini returned no candidates")
+
+    parts = candidates[0].get("content", {}).get("parts", [])
+    if not parts:
+        raise RuntimeError("Gemini returned empty content")
+
+    text = parts[0].get("text", "")
+    if not text:
+        raise RuntimeError("Gemini returned no text output")
+
+    return _extract_json_object(text)

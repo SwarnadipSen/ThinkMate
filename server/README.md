@@ -7,10 +7,10 @@ A FastAPI-based backend for a RAG (Retrieval-Augmented Generation) powered Socra
 - **JWT Authentication**: Secure user authentication with teacher/student roles
 - **Course Management**: Teachers can create and manage courses
 - **Document Processing**: Upload and process PDF, DOCX, and TXT files
-- **RAG Pipeline**: 
+- **RAG Pipeline**:
   - Text extraction and chunking (500 chars, 50 overlap)
   - Embeddings using HuggingFace all-MiniLM-L6-v2 (384-dim)
-  - Vector storage in ChromaDB
+  - Vector storage in MongoDB Atlas Vector Search
   - Metadata storage in MongoDB Atlas
 - **Socratic Chat**: AI-powered tutoring using Groq's llama-3.3-70b-versatile
 - **Streaming Chat**: Progressive token-by-token assistant responses via NDJSON stream
@@ -39,8 +39,11 @@ JWT_SECRET_KEY=your-secret-key-here
 # Groq API
 GROQ_API_KEY=your-groq-api-key-here
 
-# ChromaDB
-CHROMA_PERSIST_DIRECTORY=./chroma_db
+# MongoDB Vector Store
+VECTOR_DATABASE_NAME=socratic_tutor_vectors
+VECTOR_COLLECTION_NAME=document_chunks
+VECTOR_SEARCH_INDEX_NAME=vector_index
+VECTOR_DIMENSIONS=384
 
 # Other settings (optional)
 CHUNK_SIZE=500
@@ -63,41 +66,42 @@ API Documentation: `http://localhost:8000/docs`
 ## API Endpoints
 
 ### Authentication
+
 - `POST /auth/register` - Register new user (teacher/student)
 - `POST /auth/login` - Login and get JWT token
 - `GET /auth/me` - Get current user info
 
 ### Courses (Teachers)
+
 - `POST /courses` - Create new course
 - `GET /courses` - List courses
 - `GET /courses/{course_id}` - Get course details
 - `DELETE /courses/{course_id}` - Delete course
 
 ### Documents (Teachers)
+
 - `POST /documents/courses/{course_id}/upload` - Upload document
 - `GET /documents/courses/{course_id}/documents` - List documents
 - `DELETE /documents/{document_id}` - Delete document
 
 ### Chat (Students)
+
 - `POST /chat` - Send message and get Socratic response
 - `POST /chat/stream` - Send message and stream Socratic response chunks
 - `GET /chat/history` - Get all conversations
 - `GET /chat/history/{conversation_id}` - Get specific conversation
 - `DELETE /chat/history/{conversation_id}` - Delete conversation
 
-### Analytics (Teachers)
-- `GET /analytics/overview?time_range=30d` - Teacher analytics dashboard metrics
-
 ## Architecture
 
 ```
 File Upload → Extract Text → Chunk → Embed → Store
                                               ↓
-                                      ChromaDB + MongoDB
+                                      MongoDB Atlas
 
-Student Query → Embed → Vector Search → Top 3 Chunks → Groq LLM → Socratic Response
+Student Query → Embed → Atlas Vector Search → Top 3 Chunks → Groq LLM → Socratic Response
 
-Student Query (Stream) → Embed → Vector Search → Groq LLM (stream=True) → NDJSON chunks → Final save to history
+Student Query (Stream) → Embed → Atlas Vector Search → Groq LLM (stream=True) → NDJSON chunks → Final save to history
 ```
 
 ## Project Structure
@@ -114,7 +118,7 @@ server/
 │   ├── database.py          # MongoDB connection
 │   ├── models.py            # Pydantic models
 │   ├── auth.py              # JWT authentication
-│   ├── vector_store.py      # ChromaDB operations
+│   ├── vector_store.py      # MongoDB vector operations
 │   ├── document_processor.py # File processing
 │   └── llm.py               # Groq LLM integration
 ├── main.py                  # FastAPI application
@@ -125,6 +129,7 @@ server/
 ## Usage Example
 
 ### 1. Register a Teacher
+
 ```bash
 curl -X POST "http://localhost:8000/auth/register" \
   -H "Content-Type: application/json" \
@@ -136,6 +141,7 @@ curl -X POST "http://localhost:8000/auth/register" \
 ```
 
 ### 2. Login
+
 ```bash
 curl -X POST "http://localhost:8000/auth/login" \
   -H "Content-Type: application/json" \
@@ -146,6 +152,7 @@ curl -X POST "http://localhost:8000/auth/login" \
 ```
 
 ### 3. Create Course
+
 ```bash
 curl -X POST "http://localhost:8000/courses" \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -157,6 +164,7 @@ curl -X POST "http://localhost:8000/courses" \
 ```
 
 ### 4. Upload Document
+
 ```bash
 curl -X POST "http://localhost:8000/documents/courses/CS101/upload" \
   -H "Authorization: Bearer YOUR_TOKEN" \
@@ -164,6 +172,7 @@ curl -X POST "http://localhost:8000/documents/courses/CS101/upload" \
 ```
 
 ### 5. Chat (as Student)
+
 ```bash
 curl -X POST "http://localhost:8000/chat" \
   -H "Authorization: Bearer STUDENT_TOKEN" \
@@ -175,6 +184,7 @@ curl -X POST "http://localhost:8000/chat" \
 ```
 
 ### 6. Streaming Chat (as Student)
+
 ```bash
 curl -N -X POST "http://localhost:8000/chat/stream" \
   -H "Authorization: Bearer STUDENT_TOKEN" \
@@ -197,5 +207,5 @@ The stream returns newline-delimited JSON events:
 - Maximum file upload size: 10MB
 - Supported file types: PDF, DOCX, TXT
 - JWT tokens expire after 24 hours
-- ChromaDB data persists in `./chroma_db` directory
+- Atlas Vector Search index must exist on `embedding` field
 - Chat history is stored per student per course

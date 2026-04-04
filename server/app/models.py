@@ -91,54 +91,71 @@ class ConversationDetail(BaseModel):
     updated_at: datetime
 
 
-# ============= Analytics Models =============
-class AnalyticsSummary(BaseModel):
-    total_courses: int
-    active_courses: int
-    total_documents: int
-    active_students: int
-    total_conversations: int
-    total_messages: int
-    avg_messages_per_conversation: float
-    engagement_rate: float
+# ============= Exam Generation Models =============
+class GenerationMode(str, Enum):
+    MCQ = "mcq"
+    DESCRIPTIVE = "descriptive"
 
 
-class CourseAnalytics(BaseModel):
+class ExamGenerationRequest(BaseModel):
     course_id: str
-    course_name: str
-    document_count: int
-    student_count: int
-    conversation_count: int
-    message_count: int
-    avg_messages_per_conversation: float
-    last_activity: Optional[datetime] = None
+    selected_pdfs: List[str] = Field(default_factory=list)
+    num_questions: int = Field(..., ge=1, le=50)
+    difficulty: str = Field(default="medium")
+    topic: Optional[str] = None
+    top_k_per_document: int = Field(default=3, ge=1, le=10)
 
 
-class DailyActivity(BaseModel):
-    date: str
-    message_count: int
-    conversation_count: int
-    active_students: int
+class MCQQuestion(BaseModel):
+    question: str
+    options: List[str] = Field(..., min_length=4, max_length=4)
+    correct_answer: str
+    explanation: str
 
 
-class IssueSignal(BaseModel):
-    issue: str
-    count: int
-    percentage: float
-    example_prompts: List[str] = []
+class MCQGenerationResponse(BaseModel):
+    questions: List[MCQQuestion]
 
 
-class SourceCoverage(BaseModel):
-    assistant_messages_with_sources: int
-    total_assistant_messages: int
-    coverage_rate: float
+class DescriptiveQuestion(BaseModel):
+    question: str
+    marks: int
+    expected_points: List[str] = Field(default_factory=list)
 
 
-class TeacherAnalyticsOverview(BaseModel):
-    time_range: str
-    generated_at: datetime
-    summary: AnalyticsSummary
-    source_coverage: SourceCoverage
-    top_courses: List[CourseAnalytics]
-    activity_by_day: List[DailyActivity]
-    issue_signals: List[IssueSignal]
+class DescriptiveGenerationResponse(BaseModel):
+    questions: List[DescriptiveQuestion]
+
+
+class MCQAnswerItem(BaseModel):
+    question_index: int = Field(..., ge=0)
+    selected_answer: str
+
+
+class MCQEvaluationRequest(BaseModel):
+    questions: List[MCQQuestion]
+    answers: List[MCQAnswerItem]
+
+
+class MCQEvaluationResponse(BaseModel):
+    score: int
+    total: int
+    feedback: str
+
+
+class ImprovementPlan(BaseModel):
+    focus_areas: List[str] = Field(default_factory=list)
+    study_actions: List[str] = Field(default_factory=list)
+    next_quiz_goal: str = ""
+
+
+class MCQEvaluationWithPlanResponse(BaseModel):
+    score: int
+    total: int
+    feedback: str
+    improvement_plan: ImprovementPlan
+
+
+class ExamExportRequest(BaseModel):
+    title: str = "Exam Paper"
+    questions: List[DescriptiveQuestion]

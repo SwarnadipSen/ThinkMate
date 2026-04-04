@@ -134,7 +134,7 @@ async def delete_course(
     # Delete associated documents
     await db.documents.delete_many({"course_id": course_id})
     
-    # Delete ChromaDB collection
+    # Delete all vectors for this course
     vector_store.delete_collection(course_id)
     
     return None
