@@ -23,9 +23,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { authApi } from '@/lib/api';
-import { ROUTES } from '@/lib/constants';
+import { ROUTES, TOKEN_KEY } from '@/lib/constants';
+import { useAuthStore } from '@/store/auth-store';
 import { toast } from 'sonner';
 import { Loader2, Mail, Lock, UserCircle } from 'lucide-react';
+import { AxiosError } from 'axios';
 
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -42,6 +44,7 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { setAuth } = useAuthStore();
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -62,10 +65,39 @@ export function RegisterForm() {
         role: data.role,
       });
 
-      toast.success('Registration successful! Please login.');
-      router.push(ROUTES.LOGIN);
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Registration failed. Please try again.');
+      const loginResponse = await authApi.login({
+        email: data.email,
+        password: data.password,
+      });
+
+      const token = loginResponse.data?.access_token;
+
+      if (!token) {
+        throw new Error('Registration succeeded but no token was returned.');
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(TOKEN_KEY, token);
+      }
+
+      const userResponse = await authApi.getMe();
+      const user = userResponse.data;
+
+      setAuth(user, token);
+      toast.success('Account created. You are now logged in.');
+
+      if (user.role === 'teacher') {
+        router.push(ROUTES.TEACHER_DASHBOARD);
+      } else {
+        router.push(ROUTES.STUDENT_CHAT);
+      }
+    } catch (error: unknown) {
+      const errorDetail =
+        error instanceof AxiosError
+          ? (error.response?.data as { detail?: string } | undefined)?.detail
+          : undefined;
+
+      toast.error(errorDetail || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
