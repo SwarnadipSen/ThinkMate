@@ -1,7 +1,7 @@
 export interface User {
   id: string;
   email: string;
-  role: 'teacher' | 'student';
+  role: "teacher" | "student";
   created_at: string;
 }
 
@@ -13,7 +13,7 @@ export interface LoginRequest {
 export interface RegisterRequest {
   email: string;
   password: string;
-  role: 'teacher' | 'student';
+  role: "teacher" | "student";
 }
 
 export interface AuthResponse {
@@ -45,7 +45,7 @@ export interface Document {
 }
 
 export interface ChatMessage {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   timestamp: string;
   sources?: ChatSource[];
@@ -86,56 +86,57 @@ export interface ConversationDetail {
   updated_at: string;
 }
 
-export type AnalyticsRange = '7d' | '30d' | '90d' | 'all';
-
-export interface AnalyticsSummary {
-  total_courses: number;
-  active_courses: number;
-  total_documents: number;
-  active_students: number;
-  total_conversations: number;
-  total_messages: number;
-  avg_messages_per_conversation: number;
-  engagement_rate: number;
-}
-
-export interface SourceCoverage {
-  assistant_messages_with_sources: number;
-  total_assistant_messages: number;
-  coverage_rate: number;
-}
-
-export interface CourseAnalytics {
+export interface ExamGenerationRequest {
   course_id: string;
-  course_name: string;
-  document_count: number;
-  student_count: number;
-  conversation_count: number;
-  message_count: number;
-  avg_messages_per_conversation: number;
-  last_activity?: string | null;
+  selected_pdfs: string[];
+  num_questions: number;
+  difficulty?: "easy" | "medium" | "hard";
+  topic?: string;
 }
 
-export interface DailyActivity {
-  date: string;
-  message_count: number;
-  conversation_count: number;
-  active_students: number;
+export interface MCQQuestion {
+  question: string;
+  options: string[];
+  correct_answer: string;
+  explanation: string;
 }
 
-export interface IssueSignal {
-  issue: string;
-  count: number;
-  percentage: number;
-  example_prompts: string[];
+export interface MCQGenerationResponse {
+  questions: MCQQuestion[];
 }
 
-export interface TeacherAnalyticsOverview {
-  time_range: AnalyticsRange;
-  generated_at: string;
-  summary: AnalyticsSummary;
-  source_coverage: SourceCoverage;
-  top_courses: CourseAnalytics[];
-  activity_by_day: DailyActivity[];
-  issue_signals: IssueSignal[];
+export interface DescriptiveQuestion {
+  question: string;
+  marks: 5 | 10;
+  expected_points: string[];
+}
+
+export interface DescriptiveGenerationResponse {
+  questions: DescriptiveQuestion[];
+}
+
+export interface MCQAnswerItem {
+  question_index: number;
+  selected_answer: string;
+}
+
+export interface MCQEvaluationRequest {
+  questions: MCQQuestion[];
+  answers: MCQAnswerItem[];
+}
+
+export interface MCQEvaluationResponse {
+  score: number;
+  total: number;
+  feedback: string;
+  improvement_plan: {
+    focus_areas: string[];
+    study_actions: string[];
+    next_quiz_goal: string;
+  };
+}
+
+export interface ExamExportRequest {
+  title: string;
+  questions: DescriptiveQuestion[];
 }

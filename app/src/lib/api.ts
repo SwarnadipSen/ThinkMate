@@ -1,5 +1,5 @@
-import { apiClient } from '@/lib/api-client';
-import { API_BASE_URL, TOKEN_KEY } from '@/lib/constants';
+import { apiClient } from "@/lib/api-client";
+import { API_BASE_URL, TOKEN_KEY } from "@/lib/constants";
 import {
   LoginRequest,
   RegisterRequest,
@@ -13,80 +13,82 @@ import {
   ChatSource,
   Conversation,
   ConversationDetail,
-  AnalyticsRange,
-  TeacherAnalyticsOverview,
-} from '@/types';
+  ExamGenerationRequest,
+  MCQGenerationResponse,
+  MCQEvaluationRequest,
+  MCQEvaluationResponse,
+  DescriptiveGenerationResponse,
+  ExamExportRequest,
+} from "@/types";
 
 // Auth APIs
 export const authApi = {
   register: (data: RegisterRequest) =>
-    apiClient.post<User>('/auth/register', data),
+    apiClient.post<User>("/auth/register", data),
 
   login: (data: LoginRequest) =>
-    apiClient.post<AuthResponse>('/auth/login', data),
+    apiClient.post<AuthResponse>("/auth/login", data),
 
-  getMe: () => apiClient.get<User>('/auth/me'),
+  getMe: () => apiClient.get<User>("/auth/me"),
 };
 
 // Course APIs
 export const courseApi = {
   create: (data: CreateCourseRequest) =>
-    apiClient.post<Course>('/courses', data),
+    apiClient.post<Course>("/courses", data),
 
-  getAll: () => apiClient.get<Course[]>('/courses'),
+  getAll: () => apiClient.get<Course[]>("/courses"),
 
-  getById: (courseId: string) =>
-    apiClient.get<Course>(`/courses/${courseId}`),
+  getById: (courseId: string) => apiClient.get<Course>(`/courses/${courseId}`),
 
-  delete: (courseId: string) =>
-    apiClient.delete(`/courses/${courseId}`),
+  delete: (courseId: string) => apiClient.delete(`/courses/${courseId}`),
 };
 
 // Document APIs
 export const documentApi = {
   upload: (courseId: string, file: File) => {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
     return apiClient.post<Document>(
       `/documents/courses/${courseId}/upload`,
       formData,
       {
         headers: {
-          'Content-Type': 'multipart/form-data',
+          "Content-Type": "multipart/form-data",
         },
-      }
+      },
     );
   },
 
   getAll: (courseId: string) =>
     apiClient.get<Document[]>(`/documents/courses/${courseId}/documents`),
 
-  delete: (documentId: string) =>
-    apiClient.delete(`/documents/${documentId}`),
+  delete: (documentId: string) => apiClient.delete(`/documents/${documentId}`),
 };
 
 // Chat APIs
 export const chatApi = {
   sendMessage: (data: ChatRequest) =>
-    apiClient.post<ChatResponse>('/chat', data),
+    apiClient.post<ChatResponse>("/chat", data),
 
   streamMessage: async (
     data: ChatRequest,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
   ): Promise<{ conversation_id: string; sources: ChatSource[] }> => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
 
     const response = await fetch(`${API_BASE_URL}/chat/stream`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(data),
     });
 
     if (!response.ok) {
-      let detail = 'Failed to send message';
+      let detail = "Failed to send message";
       try {
         const errorPayload = (await response.json()) as { detail?: string };
         detail = errorPayload.detail || detail;
@@ -97,40 +99,41 @@ export const chatApi = {
     }
 
     if (!response.body) {
-      throw new Error('Streaming response is not available');
+      throw new Error("Streaming response is not available");
     }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '';
-    let donePayload: { conversation_id: string; sources: ChatSource[] } | null = null;
+    let buffer = "";
+    let donePayload: { conversation_id: string; sources: ChatSource[] } | null =
+      null;
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
 
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 
         const event = JSON.parse(trimmed) as
-          | { type: 'chunk'; content: string }
-          | { type: 'done'; conversation_id: string; sources: ChatSource[] }
-          | { type: 'error'; detail: string };
+          | { type: "chunk"; content: string }
+          | { type: "done"; conversation_id: string; sources: ChatSource[] }
+          | { type: "error"; detail: string };
 
-        if (event.type === 'chunk') {
+        if (event.type === "chunk") {
           onChunk(event.content);
         }
 
-        if (event.type === 'error') {
-          throw new Error(event.detail || 'Streaming failed');
+        if (event.type === "error") {
+          throw new Error(event.detail || "Streaming failed");
         }
 
-        if (event.type === 'done') {
+        if (event.type === "done") {
           donePayload = {
             conversation_id: event.conversation_id,
             sources: event.sources || [],
@@ -140,13 +143,13 @@ export const chatApi = {
     }
 
     if (!donePayload) {
-      throw new Error('Streaming ended without completion metadata');
+      throw new Error("Streaming ended without completion metadata");
     }
 
     return donePayload;
   },
 
-  getHistory: () => apiClient.get<Conversation[]>('/chat/history'),
+  getHistory: () => apiClient.get<Conversation[]>("/chat/history"),
 
   getConversation: (conversationId: string) =>
     apiClient.get<ConversationDetail>(`/chat/history/${conversationId}`),
@@ -155,8 +158,25 @@ export const chatApi = {
     apiClient.delete(`/chat/history/${conversationId}`),
 };
 
-// Analytics APIs
-export const analyticsApi = {
-  getOverview: (timeRange: AnalyticsRange = '30d') =>
-    apiClient.get<TeacherAnalyticsOverview>(`/analytics/overview?time_range=${timeRange}`),
+// Exam APIs
+export const examApi = {
+  generateMcq: (data: ExamGenerationRequest) =>
+    apiClient.post<MCQGenerationResponse>("/exam/mcq/generate", data),
+
+  evaluateMcq: (data: MCQEvaluationRequest) =>
+    apiClient.post<MCQEvaluationResponse>("/exam/mcq/evaluate", data),
+
+  generateDescriptive: (data: ExamGenerationRequest) =>
+    apiClient.post<DescriptiveGenerationResponse>(
+      "/exam/descriptive/generate",
+      data,
+    ),
+
+  exportDescriptivePdf: (data: ExamExportRequest) =>
+    apiClient.post<Blob>("/exam/descriptive/export-pdf", data, {
+      responseType: "blob",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }),
 };

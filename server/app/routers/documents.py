@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from app.models import DocumentResponse
-from app.auth import get_current_teacher
+from app.auth import get_current_teacher, get_current_user
 from app.database import get_database
 from app.vector_store import vector_store
 from app.document_processor import process_document
@@ -86,7 +86,7 @@ async def upload_document(
         for i in range(len(chunks))
     ]
     
-    # Store in ChromaDB
+    # Store chunk embeddings in MongoDB vector collection
     try:
         vector_store.add_documents(
             course_id=course_id,
@@ -132,9 +132,9 @@ async def upload_document(
 @router.get("/courses/{course_id}/documents", response_model=List[DocumentResponse])
 async def get_course_documents(
     course_id: str,
-    current_user: dict = Depends(get_current_teacher)
+    current_user: dict = Depends(get_current_user)
 ):
-    """Get all documents for a course (teachers only)"""
+    """Get all documents for a course (teachers/students)."""
     db = await get_database()
     
     # Verify course exists and user owns it
@@ -145,7 +145,7 @@ async def get_course_documents(
             detail="Course not found"
         )
     
-    if course["teacher_id"] != str(current_user["_id"]):
+    if current_user["role"] == "teacher" and course["teacher_id"] != str(current_user["_id"]):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to view documents for this course"
@@ -192,14 +192,14 @@ async def delete_document(
     
     # Delete from MongoDB
     await db.documents.delete_one({"document_id": document_id})
+
+    # Delete associated vectors from MongoDB vector collection.
+    vector_store.delete_document(document_id)
     
     # Update course document count
     await db.courses.update_one(
         {"course_id": document["course_id"]},
         {"$inc": {"document_count": -1}}
     )
-    
-    # Note: We can't easily delete specific chunks from ChromaDB collection
-    # In production, you might want to track chunk IDs or rebuild the collection
     
     return None
