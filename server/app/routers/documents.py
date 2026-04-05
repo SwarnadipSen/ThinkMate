@@ -5,13 +5,23 @@ from app.database import get_database
 from app.vector_store import vector_store
 from app.document_processor import process_document
 from app.config import settings
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List
 import uuid
 import asyncio
 from bson import ObjectId
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
+
+IST_TIMEZONE = timezone(timedelta(hours=5, minutes=30))
+
+
+def to_ist(dt: datetime) -> datetime:
+    """Convert datetime to Asia/Kolkata (UTC+5:30)."""
+    if dt.tzinfo is None:
+        # Existing DB values are treated as UTC when tz info is missing.
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(IST_TIMEZONE)
 
 
 @router.post("/courses/{course_id}/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
@@ -106,12 +116,14 @@ async def upload_document(
         )
     
     # Store metadata in MongoDB
+    upload_date_ist = datetime.now(IST_TIMEZONE)
+
     document_dict = {
         "document_id": document_id,
         "course_id": course_id,
         "filename": file.filename,
         "file_type": file_type,
-        "upload_date": datetime.utcnow(),
+        "upload_date": upload_date_ist,
         "chunk_count": len(chunks)
     }
     
@@ -129,7 +141,7 @@ async def upload_document(
         course_id=document_dict["course_id"],
         filename=document_dict["filename"],
         file_type=document_dict["file_type"],
-        upload_date=document_dict["upload_date"],
+        upload_date=to_ist(document_dict["upload_date"]),
         chunk_count=document_dict["chunk_count"]
     )
 
@@ -164,7 +176,7 @@ async def get_course_documents(
             course_id=doc["course_id"],
             filename=doc["filename"],
             file_type=doc["file_type"],
-            upload_date=doc["upload_date"],
+            upload_date=to_ist(doc["upload_date"]),
             chunk_count=doc["chunk_count"]
         ))
     
