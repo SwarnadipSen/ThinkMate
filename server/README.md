@@ -54,11 +54,20 @@ CHUNK_OVERLAP=50
 
 ```bash
 # Development mode with auto-reload
-uvicorn main:app --reload
+uvicorn main:app --reload --reload-dir app --reload-exclude .venv --reload-exclude __pycache__
 
 # Production mode
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
+
+Windows PowerShell (recommended):
+
+```powershell
+Set-Location "c:/Users/ayang/OneDrive/Desktop/Temp/ThinkMate2/server"
+c:/Users/ayang/OneDrive/Desktop/Temp/ThinkMate2/server/.venv/Scripts/python.exe main.py
+```
+
+Running `main.py` uses the safe reload settings in code (`reload_dirs=["app"]`) so changes in `.venv` do not trigger restart loops.
 
 The API will be available at: `http://localhost:8000`
 API Documentation: `http://localhost:8000/docs`

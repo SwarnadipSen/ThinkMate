@@ -446,16 +446,6 @@ export function ExamMode() {
                     ) : null}
                     Generate Quiz
                   </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={handleSubmitMcq}
-                    disabled={mcqQuestions.length === 0 || isSubmittingMcq}
-                  >
-                    {isSubmittingMcq ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : null}
-                    Submit Quiz
-                  </Button>
                 </div>
 
                 {mcqResult ? (
@@ -547,6 +537,23 @@ export function ExamMode() {
                     </div>
                   ))}
                 </div>
+
+                {mcqQuestions.length > 0 ? (
+                  <div className="sticky bottom-0 border-t bg-card/95 pt-4 backdrop-blur supports-backdrop-filter:bg-card/80">
+                    <div className="flex justify-end">
+                      <Button
+                        variant="secondary"
+                        onClick={handleSubmitMcq}
+                        disabled={isSubmittingMcq}
+                      >
+                        {isSubmittingMcq ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : null}
+                        Submit Quiz
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           </TabsContent>
