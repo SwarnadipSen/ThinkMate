@@ -1,357 +1,173 @@
-# System Architecture Diagram
+# ThinkMate System Architecture
 
-## Complete System Overview
+This document summarizes the current ThinkMate runtime, data flow, and service boundaries.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        THINKMATE SYSTEM                          │
-└─────────────────────────────────────────────────────────────────┘
+## Overview
 
-┌─────────────┐         ┌─────────────────────────────────────────┐
-│             │         │         FastAPI Backend                  │
-│   Next.js   │◄───────►│         (Port 8000)                      │
-│  Frontend   │  HTTP   │                                          │
-│             │  +JWT   │  ┌────────────────────────────────────┐  │
-└─────────────┘         │  │       API Endpoints                │  │
-                        │  │  - /auth/* (JWT Auth)              │  │
-                        │  │  - /courses/* (Course CRUD)        │  │
-                        │  │  - /documents/* (Upload/Process)   │  │
-                        │  │  - /chat/* (RAG + ThinkMate Chat)  │  │
-                        │  └────────────────────────────────────┘  │
-                        │                                          │
-                        │  ┌────────────────────────────────────┐  │
-                        │  │      Core Services                 │  │
-                        │  │  - auth.py (JWT)                   │  │
-                        │  │  - vector_store.py (ChromaDB)      │  │
-                        │  │  - document_processor.py           │  │
-                        │  │  - llm.py (Groq)                   │  │
-                        │  └────────────────────────────────────┘  │
-                        └──────────┬───────────────┬──────────────┘
-                                   │               │
-                    ┌──────────────┘               └───────────────┐
-                    │                                              │
-         ┌──────────▼──────────┐                    ┌─────────────▼─────────┐
-         │   MongoDB Atlas     │                    │      ChromaDB         │
-         │   (Metadata)        │                    │   (Vector Store)      │
-         ├─────────────────────┤                    ├───────────────────────┤
-         │ • Users             │                    │ • Course embeddings   │
-         │ • Courses           │                    │ • 384-dim vectors     │
-         │ • Documents         │                    │ • Cosine similarity   │
-         │ • Chat history      │                    │ • Persistent storage  │
-         └─────────────────────┘                    └───────────────────────┘
-                                                                │
-                                                    ┌───────────▼───────────┐
-                                                    │   HuggingFace Model   │
-                                                    │  all-MiniLM-L6-v2     │
-                                                    │   (384 dimensions)    │
-                                                    └───────────────────────┘
-         
-         ┌─────────────────────────────────────────────────────────┐
-         │                    Groq API                             │
-         │            llama-3.3-70b-versatile                      │
-         │         (ThinkMate Response Generation)                 │
-         └─────────────────────────────────────────────────────────┘
+ThinkMate is a two-tier web application:
+
+- Next.js frontend for teacher and student experiences.
+- FastAPI backend for authentication, course/document management, chat, and analytics.
+- MongoDB Atlas for application data and vector storage.
+- Sentence Transformers for embeddings and Groq for response generation.
+
+## Runtime Topology
+
+```mermaid
+flowchart LR
+  U[Teacher / Student Browser] --> F[Next.js Frontend]
+  F <--> |HTTP + JWT| B[FastAPI Backend :8000]
+
+  B --> A[Auth / Courses / Documents / Chat Routers]
+  B --> P[Document Processor]
+  B --> V[MongoDB Vector Store]
+  B --> L[Groq LLM]
+
+  V --> M[MongoDB Atlas Collections]
+  V --> E[Sentence Transformer Embeddings\nall-MiniLM-L6-v2, 384 dims]
+  L --> R[Standard or Streaming Answer]
 ```
 
-## User Flows
+## Request Flow
 
-### Teacher Flow:
+### Teacher workflow
 
-```
-┌──────────┐
-│ Teacher  │
-└────┬─────┘
-     │
-     ├─► Register/Login ──────► JWT Token
-     │
-     ├─► Create Course ───────► Course ID: "CS101"
-     │                          Name: "Intro to Python"
-     │
-     └─► Upload Document ─────► PDF/DOCX/TXT
-             │
-             ├─► Extract Text (PyPDF2/python-docx)
-             │
-             ├─► Chunk Text (500 chars, 50 overlap)
-             │
-             ├─► Generate Embeddings (384-dim)
-             │
-             ├─► Store in ChromaDB (vectors)
-             │
-             └─► Store in MongoDB (metadata)
+1. Register or log in and receive a JWT.
+2. Create a course through the course API.
+3. Upload PDF, DOCX, or TXT documents to that course.
+4. The backend validates the file, extracts text, chunks it, embeds the chunks, and stores both metadata and vectors in MongoDB Atlas.
+
+### Student workflow
+
+1. Register or log in and receive a JWT.
+2. Browse available courses.
+3. Ask a course-specific question.
+4. The backend embeds the query, searches the vector index, builds a context window from retrieved chunks plus recent conversation history, and sends that prompt to Groq.
+5. The frontend can receive either a normal response or an NDJSON token stream, depending on the endpoint used.
+
+## RAG Pipeline
+
+### Document ingestion
+
+```text
+Upload -> Validate file type and size -> Extract text -> Chunk text -> Embed chunks -> Store vectors and metadata
 ```
 
-### Student Flow:
+- PDF extraction uses PyPDF2.
+- DOCX extraction uses python-docx.
+- TXT files are decoded as UTF-8.
+- Chunking is currently configured for 500 characters with 50 characters of overlap.
+- Embeddings use sentence-transformers/all-MiniLM-L6-v2, producing 384-dimensional vectors.
 
-```
-┌──────────┐
-│ Student  │
-└────┬─────┘
-     │
-     ├─► Register/Login ──────► JWT Token
-     │
-     ├─► View Courses ────────► List of available courses
-     │
-     └─► Ask Question ────────► "What is a variable in Python?"
-             │
-             ├─► Generate Query Embedding
-             │
-             ├─► Search ChromaDB
-             │       │
-             │       └─► Top 3 similar chunks
-             │
-             ├─► Build Context
-             │       │
-             │       ├─► Retrieved chunks
-             │       └─► Conversation history
-             │
-             ├─► Send to Groq LLM
-             │       │
-             │       └─► ThinkMate Prompt + Context
-             │
-            ├─► Stream tokens (NDJSON chunks)
-            │       │
-            │       └─► Update UI progressively
-             │
-            └─► Save final response to Chat History
+### Query answering
+
+```text
+Question -> Embed query -> Vector search -> Top relevant chunks -> Build prompt context -> Groq response -> Save chat history
 ```
 
-## RAG Pipeline Detail
+- Retrieval uses MongoDB Atlas Vector Search with cosine similarity.
+- The prompt combines retrieved chunks, course context, and the most recent conversation messages.
+- Streaming chat emits NDJSON chunk events and finishes with a done event that includes sources and conversation metadata.
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│                    DOCUMENT PROCESSING                         │
-└────────────────────────────────────────────────────────────────┘
+## Data Model
 
-File Upload
-    │
-    ├─► Validate (type, size)
-    │
-    ├─► Extract Text
-    │   ├─► PDF: PyPDF2.PdfReader
-    │   ├─► DOCX: python-docx.Document
-    │   └─► TXT: UTF-8 decode
-    │
-    ├─► Chunk Text
-    │   ├─► Size: 500 characters
-    │   ├─► Overlap: 50 characters
-    │   └─► Output: List[str]
-    │
-    ├─► Generate Embeddings
-    │   ├─► Model: all-MiniLM-L6-v2
-    │   ├─► Input: Text chunks
-    │   └─► Output: 384-dim vectors
-    │
-    └─► Store
-        ├─► ChromaDB: Vectors + chunk text
-        └─► MongoDB: Metadata (filename, course, etc.)
+### MongoDB collections
 
-┌────────────────────────────────────────────────────────────────┐
-│                    QUERY PROCESSING                            │
-└────────────────────────────────────────────────────────────────┘
+- `users`: authentication identity, hashed password, role, timestamps.
+- `courses`: course ownership, course ID, display name, document count, timestamps.
+- `documents`: uploaded file metadata, document type, chunk count, timestamps.
+- `chat_history`: per-student conversation state, per-course message history, timestamps.
 
-Student Question
-    │
-    ├─► Generate Query Embedding
-    │   └─► Same model: all-MiniLM-L6-v2
-    │
-    ├─► Vector Search (ChromaDB)
-    │   ├─► Similarity: Cosine
-    │   ├─► Results: Top 3 chunks
-    │   └─► With metadata
-    │
-    ├─► Build Context
-    │   ├─► Format chunks
-    │   ├─► Add conversation history (last 10 messages)
-    │   └─► Add course name
-    │
-    ├─► Groq LLM
-    │   ├─► Model: llama-3.3-70b-versatile
-    │   ├─► Temperature: 0.7
-    │   ├─► Max tokens: 500
-    │   ├─► System: ThinkMate prompt
-    │   ├─► Context: Retrieved chunks + history
-    │   └─► Streaming mode: stream=True (/chat/stream)
-    │
-    └─► Response
-      ├─► Emit NDJSON `chunk` events
-      ├─► Emit NDJSON `done` event with sources/conversation_id
-      ├─► Save final assistant response to chat history
-      └─► Return full response path still available at /chat
+### Vector collection
+
+Each document chunk is stored with its embedding and retrieval metadata in the configured vector collection.
+
+```text
+document_chunks
+├─ vector_id: String
+├─ course_id: String
+├─ content: String
+├─ embedding: Float[384]
+└─ metadata
+   ├─ document_id: String
+   ├─ filename: String
+   ├─ chunk_index: Number
+   └─ total_chunks: Number
 ```
 
-## Database Schemas
+## Security
 
-### MongoDB Collections:
+- Authentication uses JWT tokens signed with HS256.
+- Tokens expire after 24 hours by default.
+- Token payload includes the user email and role.
+- Teacher routes are restricted to course and document management.
+- Student routes are restricted to browsing and chat workflows.
 
-```
-users
-├─ _id: ObjectId
-├─ email: String (unique, indexed)
-├─ password_hash: String
-├─ role: "teacher" | "student"
-└─ created_at: DateTime
+## Backend Services
 
-courses
-├─ _id: ObjectId
-├─ course_id: String (unique, indexed)
-├─ name: String
-├─ teacher_id: String (indexed)
-├─ document_count: Number
-└─ created_at: DateTime
-
-documents
-├─ _id: ObjectId
-├─ document_id: String
-├─ course_id: String (indexed)
-├─ filename: String
-├─ file_type: "pdf" | "docx" | "txt"
-├─ chunk_count: Number
-└─ upload_date: DateTime
-
-chat_history
-├─ _id: ObjectId
-├─ student_id: String (indexed)
-├─ course_id: String (indexed)
-├─ messages: Array[
-│   ├─ role: "user" | "assistant"
-│   ├─ content: String
-│   └─ timestamp: DateTime
-│  ]
-├─ created_at: DateTime
-└─ updated_at: DateTime
+```text
+main.py                   FastAPI entry point
+app/config.py             Environment and runtime settings
+app/database.py           MongoDB connection
+app/auth.py               JWT helpers and access control
+app/document_processor.py Text extraction and chunking
+app/vector_store.py       Embedding generation and Atlas Vector Search
+app/llm.py                Groq prompt and response handling
+app/routers/              API route modules
 ```
 
-### ChromaDB Collections:
+## API Surface
 
-```
-course_{course_id}
-├─ id: String (chunk_id)
-├─ document: String (chunk text)
-├─ embedding: Float[384] (vector)
-└─ metadata: {
-    ├─ document_id: String
-    ├─ filename: String
-    ├─ chunk_index: Number
-    └─ total_chunks: Number
-   }
-```
+### Public
 
-## Security & Access Control
+- `POST /auth/register`
+- `POST /auth/login`
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    JWT AUTHENTICATION                    │
-├─────────────────────────────────────────────────────────┤
-│  Login ──► JWT Token (24h expiry)                       │
-│    │                                                     │
-│    ├─► Payload: {sub: email, role: teacher|student}    │
-│    └─► Signature: HS256 with SECRET_KEY                │
-└─────────────────────────────────────────────────────────┘
+### Authenticated
 
-┌─────────────────────────────────────────────────────────┐
-│                  ROLE-BASED ACCESS                       │
-├─────────────────────────────────────────────────────────┤
-│  TEACHER CAN:                                            │
-│  ✅ Create courses                                       │
-│  ✅ Upload documents to their courses                    │
-│  ✅ View their courses                                   │
-│  ✅ Delete their courses                                 │
-│  ❌ Cannot chat                                          │
-│                                                          │
-│  STUDENT CAN:                                            │
-│  ✅ View all courses                                     │
-│  ✅ Chat with course materials                           │
-│  ✅ View chat history                                    │
-│  ❌ Cannot create/modify courses                         │
-│  ❌ Cannot upload documents                              │
-└─────────────────────────────────────────────────────────┘
-```
+- `GET /auth/me`
 
-## File Structure
+### Teacher only
 
-```
+- `POST /courses`
+- `DELETE /courses/{id}`
+- `POST /documents/courses/{id}/upload`
+- `GET /documents/courses/{id}/documents`
+- `DELETE /documents/{id}`
+
+### Student only
+
+- `POST /chat`
+- `POST /chat/stream`
+- `GET /chat/history`
+- `GET /chat/history/{id}`
+- `DELETE /chat/history/{id}`
+
+### Shared
+
+- `GET /courses`
+- `GET /courses/{id}`
+
+## Repository Layout
+
+```text
 server/
-├── main.py                    # FastAPI app entry point
-├── requirements.txt           # Python dependencies
-├── .env                       # Environment config (SECRET!)
-├── .env.example              # Template
-├── .gitignore                # Git ignore
-│
+├── main.py
+├── requirements.txt
 ├── app/
-│   ├── __init__.py
-│   ├── config.py             # Settings (loads .env)
-│   ├── database.py           # MongoDB connection
-│   ├── models.py             # Pydantic models
-│   ├── auth.py               # JWT utils
-│   ├── vector_store.py       # ChromaDB operations
-│   ├── document_processor.py # Text extraction
-│   ├── llm.py                # Groq integration
-│   │
+│   ├── config.py
+│   ├── database.py
+│   ├── models.py
+│   ├── auth.py
+│   ├── vector_store.py
+│   ├── document_processor.py
+│   ├── llm.py
 │   └── routers/
-│       ├── __init__.py
-│       ├── auth.py           # /auth/* endpoints
-│       ├── courses.py        # /courses/* endpoints
-│       ├── documents.py      # /documents/* endpoints
-│       └── chat.py           # /chat/* endpoints
-│
-├── uploads/                  # (Empty - files processed in memory)
-├── chroma_db/               # ChromaDB persistent storage
-│
-└── Documentation/
-    ├── START_HERE.md        # ⭐ Start here!
-    ├── SETUP.md             # Quick setup
-    ├── README.md            # Full documentation
-    ├── QUICK_REFERENCE.md   # API reference
-    ├── IMPLEMENTATION.md    # Technical details
-    ├── test_api.py          # Test script
-    ├── check_setup.py       # Verify setup
-    └── generate_secret.py   # Generate JWT key
+└── README.md
 ```
 
-## Technology Stack
+## Notes
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                    BACKEND STACK                         │
-├──────────────────────────────────────────────────────────┤
-│  Web Framework    │ FastAPI 0.109+                       │
-│  Server           │ Uvicorn (ASGI)                       │
-│  Database         │ MongoDB Atlas (cloud)                │
-│  Vector DB        │ ChromaDB (persistent)                │
-│  Embeddings       │ HuggingFace Sentence Transformers    │
-│  LLM              │ Groq API (llama-3.3-70b)            │
-│  Auth             │ JWT (python-jose)                    │
-│  Password Hash    │ bcrypt (passlib)                     │
-│  PDF Parser       │ PyPDF2                               │
-│  DOCX Parser      │ python-docx                          │
-└──────────────────────────────────────────────────────────┘
-```
-
-## API Endpoints Summary
-
-```
-PUBLIC:
-  POST   /auth/register       Register user
-  POST   /auth/login          Get JWT token
-
-AUTHENTICATED:
-  GET    /auth/me             Get current user
-
-TEACHER ONLY:
-  POST   /courses             Create course
-  DELETE /courses/{id}        Delete course
-  POST   /documents/courses/{id}/upload
-  GET    /documents/courses/{id}/documents
-  DELETE /documents/{id}
-
-STUDENT ONLY:
-  POST   /chat                Send message
-  POST   /chat/stream         Stream message response (NDJSON)
-  GET    /chat/history        List conversations
-  GET    /chat/history/{id}   Get conversation
-  DELETE /chat/history/{id}   Delete conversation
-
-BOTH:
-  GET    /courses             List courses
-  GET    /courses/{id}        Get course details
-```
+- The backend currently uses MongoDB Atlas Vector Search, not a separate ChromaDB service.
+- Embedding and vector-search dimensions are set to 384 to match all-MiniLM-L6-v2.
+- Optional exam-generation flows can use Gemini, but the core tutoring path is Groq-backed.
